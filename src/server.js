@@ -1,14 +1,30 @@
-import http from 'http';
+import http from 'node:http'
 
-const server = http.createServer((req, res) => {
-  // Aqui você lida com as requisições HTTP
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'text/plain');
-  res.end('Hello, world!');
-});
+import { json } from './middlewares/json.js'
+import { routes } from './routes.js'
+import { extractQueryParams } from './utils/extract-query-params.js'
 
-const PORT = 3000; // Escolha uma porta que esteja disponível
+const server = http.createServer(async (req, res) => {
+  const { method, url } = req
 
-server.listen(PORT, () => {
-    console.log(`Servidor está rodando em http://localhost:${PORT}`);
-});
+  await json(req, res)
+
+  const route = routes.find(route => {
+    return route.method === method && route.path.test(url)
+  })
+
+  if (route) {
+    const routeParams = req.url.match(route.path)
+
+    const { query, ...params } = routeParams.groups
+
+    req.params = params
+    req.query = query ? extractQueryParams(query) : {}
+
+    return route.handler(req, res)
+  }
+
+  return res.writeHead(404).end()
+})
+
+server.listen(3333)
